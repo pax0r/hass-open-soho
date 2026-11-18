@@ -7,7 +7,7 @@ Dodatek dla Home Assistant OS z Supervisorem na `amd64` i `aarch64`. Panel OpenS
 1. Upewnij się, że gałąź udostępniana Supervisorowi zawiera `repository.yaml` i katalog `opensoho/`. W sklepie dodatków Home Assistanta otwórz menu repozytoriów i dodaj `https://github.com/pax0r/hass-open-soho`. Do instalacji lokalnej umieść katalog `opensoho/` w katalogu lokalnych dodatków HA OS i odśwież sklep.
 2. Zainstaluj **OpenSOHO**. Supervisor buduje obraz ze wskazanych rewizji. Pierwszy build wymaga dostępu do danych obrazów Docker Hub, pakietów Debiana, GitHub, npm i publicznego proxy Go. Uruchomiony kontroler działa lokalnie. Obraz zawiera zasoby WWW i strefy czasowe.
 3. W konfiguracji dodatku ustaw `shared_secret`. Możesz wygenerować 64 znaki poleceniem `openssl rand -hex 32` na zaufanym komputerze. Dodatek wymaga co najmniej 32 znaków. Zachowaj wartość do rejestracji routerów.
-4. Uruchom dodatek. Zaloguj się do HA jako administrator i otwórz **OpenSOHO** w bocznym menu. Użyj normalnego adresu HA, lokalnego lub zewnętrznego HTTPS. Zachowaj istniejącą konfigurację VPS, reverse proxy i WireGuarda.
+4. Włącz **Pokaż na pasku bocznym** na stronie dodatku. Jest to ustawienie instancji przechowywane przez Supervisor. Uruchom dodatek. Zaloguj się do HA jako administrator i otwórz **OpenSOHO** w bocznym menu. Użyj normalnego adresu HA, lokalnego lub zewnętrznego HTTPS. Zachowaj istniejącą konfigurację VPS, reverse proxy i WireGuarda.
 5. Ustaw stały adres LAN hosta HA. Domyślny port agentów to `8090/tcp`. Jeżeli zmienisz port w ustawieniach sieciowych dodatku, zaktualizuj URL na routerach.
 
 | Ścieżka | Przeznaczenie |

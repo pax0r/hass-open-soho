@@ -14,7 +14,6 @@ backup_exclude:
   - opensoho/pb_migrations
 ingress: true
 ingress_port: 8091
-ingress_panel: true
 ingress_stream: true
 panel_admin: true
 panel_title: OpenSOHO
