@@ -46,15 +46,22 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
       - name: Run Go vet, Go tests, module verification and JavaScript tests
-        run: |
-          docker buildx build --target test \
-            --cache-from type=gha,scope=${{ matrix.architecture }} \
-            --cache-to type=gha,mode=max,scope=${{ matrix.architecture }} opensoho
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: opensoho
+          target: test
+          cache-from: type=gha,scope=${{ matrix.architecture }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.architecture }}
       - name: Build native runtime image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: opensoho
+          platforms: linux/${{ matrix.architecture }}
+          load: true
+          tags: hass-open-soho:local
+          cache-from: type=gha,scope=${{ matrix.architecture }}
+      - name: Check runtime architecture
         run: |
-          docker buildx build --platform linux/${{ matrix.architecture }} --load \
-            --cache-from type=gha,scope=${{ matrix.architecture }} \
-            -t hass-open-soho:local opensoho
           test "$(docker image inspect hass-open-soho:local -f '{{.Architecture}}')" = "${{ matrix.architecture }}"
       - name: Exercise Ingress, OpenWISP, browser and persistence
         run: |
