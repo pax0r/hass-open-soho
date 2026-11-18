@@ -1,2 +1,2 @@
 /opensoho/.build/
-/tests/__pycache__/
+__pycache__/

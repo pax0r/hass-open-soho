@@ -18,18 +18,19 @@ checkout() {
 }
 
 addon_dir=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+. "$addon_dir/upstream.env"
 target=${2:?supply an absolute build directory}
 case "$target" in /*) ;; *) exit 2 ;; esac
 case "${1:?supply ui or go}" in
     ui)
-        checkout https://github.com/pocketbase/pocketbase.git 6f370ea741f33adf889eef02e3c1b884a47aa522 "$target/pocketbase"
+        checkout https://github.com/pocketbase/pocketbase.git "$POCKETBASE_COMMIT" "$target/pocketbase"
         git -C "$target/pocketbase" apply "$addon_dir/patches/pocketbase-ui.patch"
         cd "$target/pocketbase/ui"
         npm ci --no-audit --no-fund
         npm exec --offline -- vite build
         ;;
     go)
-        checkout https://github.com/rubenbe/opensoho.git 6349f37abcc43bc7f5d68db581fd4c1e328aaf2f "$target/opensoho"
+        checkout https://github.com/rubenbe/opensoho.git "$OPENSOHO_COMMIT" "$target/opensoho"
         git -C "$target/opensoho" apply "$addon_dir/patches/opensoho.patch"
         cp "$addon_dir"/overlay/*.go "$target/opensoho/"
         rm -rf "$target/opensoho/ha_ui"

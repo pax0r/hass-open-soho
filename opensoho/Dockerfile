@@ -2,6 +2,7 @@ FROM --platform=$BUILDPLATFORM node:24.22.1-bookworm-slim@sha256:be8204d4bd32736
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates git && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY scripts/sources.sh scripts/sources.sh
+COPY upstream.env upstream.env
 COPY patches/pocketbase-ui.patch patches/pocketbase-ui.patch
 RUN --mount=type=cache,target=/root/.npm --mount=type=secret,id=build_ca \
     sh scripts/sources.sh ui /build
@@ -11,6 +12,7 @@ ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /src
 COPY scripts/sources.sh scripts/sources.sh
+COPY upstream.env upstream.env
 COPY patches/opensoho.patch patches/opensoho.patch
 COPY overlay/ overlay/
 COPY --from=ui /build/pocketbase/ui/dist/ /build/pocketbase/ui/dist/
@@ -31,7 +33,7 @@ ARG TARGETOS
 ARG TARGETARCH
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -mod=readonly -trimpath -buildvcs=false \
-    -ldflags="-s -w -X github.com/rubenbe/opensoho/ui.Version=6349f37-ha" -o /opensoho .
+    -ldflags="-s -w" -o /opensoho .
 
 FROM scratch
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/

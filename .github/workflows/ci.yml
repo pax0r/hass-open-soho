@@ -26,7 +26,8 @@ jobs:
         run: |
           go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck=
           sh -n opensoho/scripts/sources.sh
-          python3 -m py_compile tests/*.py
+          python3 -m py_compile tests/*.py scripts/*.py
+          python3 -m unittest discover -s tests -p 'test_*.py'
           test -z "$(gofmt -l opensoho/overlay)"
           docker buildx build --check opensoho
 

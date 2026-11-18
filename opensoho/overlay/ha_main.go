@@ -37,6 +37,16 @@ type addonOptions struct {
 }
 
 func main() {
+	// Upstream writes generated router configuration to stdout. Suppress
+	// that stream at the add-on boundary to keep credentials out of logs.
+	// The add-on's startup and fatal diagnostics use stderr.
+	upstreamOutput, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	if err != nil {
+		log.Fatal("cannot suppress upstream configuration output: ", err)
+	}
+	defer upstreamOutput.Close()
+	os.Stdout = upstreamOutput
+
 	contents, err := os.ReadFile(dataRoot + "/options.json")
 	if err != nil {
 		log.Fatal("cannot read /data/options.json: ", err)

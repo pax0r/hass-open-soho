@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1
+
+- Base the add-on on stable OpenSOHO v0.16.0 and record upstream release pins centrally.
+- Reduce OpenSOHO patches to HA startup integration and suppress raw configuration output in the add-on entry point.
+- Check for new published stable OpenSOHO and PocketBase releases daily.
+- Translate project documentation to English and add contributor instructions in AGENTS.md.
+
 ## 0.1.0
 
 - Package pinned OpenSOHO and PocketBase for Home Assistant OS on amd64 and aarch64.

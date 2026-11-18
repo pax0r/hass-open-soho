@@ -282,6 +282,8 @@ def smoke(image, replacement, use_browser):
                     ["docker", "logs", controller], text=True, stderr=subprocess.STDOUT
                 )
                 assert all(value not in logs for value in (key, secret, admin)), "secret in container logs"
+                assert "numradios" not in logs, "raw upstream configuration output reached the add-on log"
+                assert "OpenWISP listener ready" in logs, "add-on startup diagnostics are missing"
                 docker("rm", controller)
                 agent, _ = start(replacement or image)
                 result, _ = request(ingress, devices_path, headers=admin_headers)

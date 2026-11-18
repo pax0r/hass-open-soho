@@ -1,56 +1,63 @@
-# OpenSOHO dla Home Assistanta
+# OpenSOHO for Home Assistant
 
-Dodatek dla Home Assistant OS z Supervisorem na `amd64` i `aarch64`. Panel OpenSOHO otwiera się z bocznego menu Home Assistanta. Routery OpenWrt rejestrują się, pobierają konfigurację i raportują monitoring przez osobny port LAN.
+A Home Assistant OS add-on for Supervisor installations on `amd64` and `aarch64`. The OpenSOHO panel opens from the Home Assistant sidebar. OpenWrt routers register, download configuration and send monitoring reports through a separate LAN port.
 
-## Instalacja
+## Installation
 
-1. Upewnij się, że gałąź udostępniana Supervisorowi zawiera `repository.yaml` i katalog `opensoho/`. W sklepie dodatków Home Assistanta otwórz menu repozytoriów i dodaj `https://github.com/pax0r/hass-open-soho`. Do instalacji lokalnej umieść katalog `opensoho/` w katalogu lokalnych dodatków HA OS i odśwież sklep.
-2. Zainstaluj **OpenSOHO**. Supervisor buduje obraz ze wskazanych rewizji. Pierwszy build wymaga dostępu do danych obrazów Docker Hub, pakietów Debiana, GitHub, npm i publicznego proxy Go. Uruchomiony kontroler działa lokalnie. Obraz zawiera zasoby WWW i strefy czasowe.
-3. W konfiguracji dodatku ustaw `shared_secret`. Możesz wygenerować 64 znaki poleceniem `openssl rand -hex 32` na zaufanym komputerze. Dodatek wymaga co najmniej 32 znaków. Zachowaj wartość do rejestracji routerów.
-4. Włącz **Pokaż na pasku bocznym** na stronie dodatku. Jest to ustawienie instancji przechowywane przez Supervisor. Uruchom dodatek. Zaloguj się do HA jako administrator i otwórz **OpenSOHO** w bocznym menu. Użyj normalnego adresu HA, lokalnego lub zewnętrznego HTTPS. Zachowaj istniejącą konfigurację VPS, reverse proxy i WireGuarda.
-5. Ustaw stały adres LAN hosta HA. Domyślny port agentów to `8090/tcp`. Jeżeli zmienisz port w ustawieniach sieciowych dodatku, zaktualizuj URL na routerach.
+1. Ensure the branch available to Supervisor contains `repository.yaml` and the `opensoho/` directory. In the Home Assistant add-on store, open the repositories menu and add `https://github.com/pax0r/hass-open-soho`. For a local installation, place `opensoho/` in the HA OS local add-ons directory and refresh the store.
+2. Install **OpenSOHO**. Supervisor builds the image from pinned revisions. The initial build requires access to Docker Hub image downloads, Debian packages, GitHub, npm and the public Go module proxy. The running controller operates locally. The image includes web assets and time zone data.
+3. Set `shared_secret` in the add-on configuration. Generate 64 characters with `openssl rand -hex 32` on a trusted computer. The add-on requires at least 32 characters. Keep the value for router registration.
+4. Enable **Show in sidebar** on the add-on page. Supervisor stores this as an instance setting. Start the add-on, sign in to HA as an administrator and open **OpenSOHO** in the sidebar. Use your usual local HA address or external HTTPS address. Keep your existing VPS, reverse proxy and WireGuard configuration.
+5. Assign a stable LAN address to the HA host. The default agent port is `8090/tcp`. If you change it in the add-on's network settings, update the controller URL on the routers.
 
-| Ścieżka | Przeznaczenie |
+| Address or path | Purpose |
 | --- | --- |
-| Zewnętrzny lub lokalny adres HA | Panel i API administracyjne przez Ingress na wewnętrznym porcie dodatku 8091 |
-| `http://<IP-HA-w-LAN>:8090` | Rejestracja, raporty stanu i metadanych, sumy kontrolne, archiwa konfiguracji i monitoring OpenWISP |
-| `/data/opensoho/pb_data` | SQLite, pliki PocketBase i konfiguracja kontrolera |
+| External or local HA address | Panel and administrative API through Ingress on internal add-on port 8091 |
+| `http://<HA-LAN-IP>:8090` | OpenWISP registration, status and metadata reports, checksums, configuration archives and monitoring |
+| `/data/opensoho/pb_data` | SQLite databases, PocketBase files and controller configuration |
 
-Ogranicz dostęp do 8090 do zaufanych routerów lub sieci zarządzającej. HTTP na tym porcie nie szyfruje sekretu rejestracji, kluczy urządzeń ani konfiguracji. Port 8091 obsługuje Supervisor wewnątrz sieci HA i nie wymaga publikowania na hoście.
+Restrict port 8090 to trusted routers or a management network. HTTP on this port sends registration secrets, device keys and configuration without encryption. Supervisor accesses port 8091 within the HA network.
 
-## Routery OpenWrt 25.12
+## OpenWrt 25.12 routers
 
-1. Na Cudy WR3000H i TP-Link Archer C6 v2 sprawdź, czy działają `openwisp-config` i `openwisp-monitoring`. W LuCI ustaw **Server URL** na `http://<IP-HA-w-LAN>:8090` bez końcowego ukośnika oraz **Shared secret** na wartość z ustawień dodatku. Jeżeli pakiety są już zainstalowane, nie wymieniaj ich.
-2. Uruchom lub zrestartuj `/etc/init.d/openwisp-config` oraz `/etc/init.d/openwisp-monitoring`. Jeśli potrzebujesz LuCI dla OpenWISP, na 25.12 użyj `apk add luci-app-openwisp`. W konfiguracji roamingu zweryfikuj pakiety `wpad-mbedtls` i `usteer` na obu urządzeniach.
-3. Sprawdź w panelu, czy obydwa urządzenia pojawiły się w **Configuration → Devices** i raportują stan. `enable_new_devices: false` pozwala najpierw zarejestrować urządzenia i przejrzeć ich ustawienia. Zmiana opcji dotyczy nowo rejestrowanych urządzeń. Włącz dostarczanie konfiguracji pojedynczo po sprawdzeniu podglądu.
-4. Zachowaj kopie konfiguracji obu routerów. Sprawdź na Cudy PPPoE, LAN, DHCP, firewall i dostęp awaryjny. Na Archerze potwierdź brak drugiego serwera DHCP, prawidłowy most i zachowanie przewodowego uplinku. Porównaj proponowane zmiany z aktualnym UCI przed włączeniem dostarczania konfiguracji.
+1. On the Cudy WR3000H and TP-Link Archer C6 v2, check that `openwisp-config` and `openwisp-monitoring` are running. In LuCI, set **Server URL** to `http://<HA-LAN-IP>:8090` with no trailing slash, and **Shared secret** to the value configured in the add-on. Reuse packages that are already installed.
+2. Start or restart `/etc/init.d/openwisp-config` and `/etc/init.d/openwisp-monitoring`. If you need the OpenWISP LuCI interface, use `apk add luci-app-openwisp` on 25.12. Check the `wpad-mbedtls` and `usteer` packages on both devices when configuring roaming.
+3. Confirm both devices appear under **Configuration → Devices** and report their status. The default `enable_new_devices: false` allows registration and inspection before configuration delivery. Changing this option affects newly registered devices. Enable configuration delivery individually after reviewing the preview.
+4. Back up both routers. On the Cudy, check PPPoE, LAN, DHCP, firewall rules and recovery access. On the Archer, confirm the bridge and wired uplink settings and verify that a second DHCP server is disabled. Compare proposed changes with the current UCI configuration before enabling delivery.
 
-Interfejs agentów przepuszcza dokładne metody i ścieżki OpenSOHO. Są to `POST /controller/register/`, `POST /controller/report-status/<uuid>/`, `POST /controller/update-info/<uuid>/`, `GET /controller/checksum/<uuid>/`, `GET /controller/download-config/<uuid>/` i `POST /api/v1/monitoring/device/`. OpenSOHO nadal sprawdza sekrety i klucze OpenWISP. [Punkt wejścia OpenSOHO](https://github.com/rubenbe/opensoho/blob/6349f37abcc43bc7f5d68db581fd4c1e328aaf2f/opensoho.go)
+The agent listener permits the exact OpenSOHO methods and paths below. OpenSOHO validates the OpenWISP secrets and device keys. [OpenSOHO entry point](https://github.com/rubenbe/opensoho/blob/f54faedea50e5fa9569de3ee634f98f8b1565e32/opensoho.go)
 
-## SSO i zachowanie sesji
+- `POST /controller/register/`
+- `POST /controller/report-status/<uuid>/`
+- `POST /controller/update-info/<uuid>/`
+- `GET /controller/checksum/<uuid>/`
+- `GET /controller/download-config/<uuid>/`
+- `POST /api/v1/monitoring/device/`
 
-Supervisor ogranicza panel przez `panel_admin`. Dodatek dodatkowo sprawdza adres połączenia TCP `172.30.32.2` z dokumentacji HA, poprawny identyfikator użytkownika oraz członkostwo w `system-admin` z nagłówka `X-Remote-User-Groups`. Sprawdzony kod Supervisora usuwa przychodzące nagłówki tożsamości i wstawia własne. Właściciel HA otrzymuje efektywne członkostwo w grupie administratorów. Obsługę nagłówka potwierdzono w kodzie wydania Supervisora 2026.11.0. Wersja bez tego nagłówka powoduje odmowę. Nie nadawaj dodatkowi roli Supervisor API `admin` tylko po to, aby czytać listę użytkowników. [Dokumentacja Ingress](https://developers.home-assistant.io/docs/apps/presentation/#ingress) · [Supervisor Ingress](https://github.com/home-assistant/supervisor/blob/c1c6f0a754c0656eb1af189f11009f1cfc4b3e28/supervisor/api/ingress.py) · [Grupy](https://github.com/home-assistant/supervisor/blob/c1c6f0a754c0656eb1af189f11009f1cfc4b3e28/supervisor/const.py)
+## SSO and session behavior
 
-Adapter przekazuje zaufaną tożsamość do `RequestEvent.Auth` w PocketBase. Wewnętrzny rekord superusera ma losowe hasło tworzone przy pierwszym uruchomieniu. Przeglądarka otrzymuje identyfikator i nazwę kolekcji, a każde kolejne żądanie i ponowne połączenie SSE ponownie przechodzą przez kontrolę Ingress. Token pobrania pliku chronionego powstaje wyłącznie wewnątrz procesu. PocketBase nadal sprawdza swoje reguły. Wbudowane endpointy umożliwiające wydanie tokenu administracyjnego i instalator PocketBase są niedostępne. [PocketBase Go routing](https://pocketbase.io/docs/go-routing/)
+Supervisor restricts the panel using `panel_admin`. The add-on also checks the TCP peer address `172.30.32.2` documented by HA, a valid user ID and membership in `system-admin` from `X-Remote-User-Groups`. The inspected Supervisor code removes incoming identity headers and inserts its own. The HA owner receives effective administrator group membership. Header support was confirmed in Supervisor 2026.11.0. Versions without this header receive an access denial. [Ingress documentation](https://developers.home-assistant.io/docs/apps/presentation/#ingress) · [Supervisor Ingress](https://github.com/home-assistant/supervisor/blob/c1c6f0a754c0656eb1af189f11009f1cfc4b3e28/supervisor/api/ingress.py) · [Groups](https://github.com/home-assistant/supervisor/blob/c1c6f0a754c0656eb1af189f11009f1cfc4b3e28/supervisor/const.py)
 
-Uprawnienia zależą od ważności sesji Ingress i roli przekazywanej przez Supervisor. W sprawdzonym kodzie HA wylogowanie odwołuje sesję Core, a cookie Ingress ma osobny cykl życia w Supervisorze. Aktualny Supervisor przedłuża jego ważność o 15 minut przy kolejnych żądaniach i może trzymać role w pamięci. Już otwarty strumień SSE jest ograniczony do 1 minuty. Przy testowaniu natychmiastowego odebrania dostępu usuń cookie `ingress_session` z przeglądarki i sprawdź nową sesję. Po awaryjnym odebraniu roli odśwież dane ról Supervisora przez jego restart, a następnie sprawdź odmowę na poprzednim koncie. [Kod sesji Supervisora](https://github.com/home-assistant/supervisor/blob/c1c6f0a754c0656eb1af189f11009f1cfc4b3e28/supervisor/ingress.py)
+The adapter supplies the trusted identity through PocketBase's `RequestEvent.Auth`. The internal superuser record receives a random password on first startup. The browser receives a record ID and collection name. Each subsequent request and SSE reconnection passes through the Ingress authorization check. Tokens for protected file and backup downloads are created inside the process. PocketBase continues to enforce its access rules. The gateway blocks the built-in administrative token endpoints and PocketBase installer. [PocketBase Go routing](https://pocketbase.io/docs/go-routing/)
 
-Wyłączenie panelu przez kontrolę roli nie zatrzymuje agentów. Dodatek nie żąda API hosta, mapowania Dockera ani dodatkowych uprawnień Supervisora. Na starcie przygotowuje katalog danych i przechodzi na UID/GID 10001. Logi żądań PocketBase są wyłączone, aby ścieżki Ingress i klucze w query agentów nie trafiały do logów. Diagnostyka kontrolera pozostaje dostępna w logu dodatku.
+Access depends on the Ingress session and the role supplied by Supervisor. In the inspected HA code, logout revokes the Core session, while the Ingress cookie has its own Supervisor lifecycle. Supervisor extends its validity by 15 minutes on subsequent requests and may cache user roles. Existing SSE streams are limited to one minute. When testing immediate access revocation, remove the `ingress_session` browser cookie and check a fresh session. After emergency role revocation, restart Supervisor to refresh its cached roles, then verify that the former account is denied access. [Supervisor session implementation](https://github.com/home-assistant/supervisor/blob/c1c6f0a754c0656eb1af189f11009f1cfc4b3e28/supervisor/ingress.py)
 
-## Backup, odtwarzanie i aktualizacja
+Agent operation continues independently of panel authorization. The add-on prepares its persistent directory and switches to UID/GID 10001 on startup. PocketBase request logging is disabled to keep Ingress paths and agent keys in query strings out of logs. The add-on suppresses raw upstream stdout, which can contain generated router configuration. Startup and fatal diagnostics remain on stderr in the add-on log. PocketBase structured diagnostics are stored in its log database.
 
-- Utwórz backup Home Assistanta obejmujący OpenSOHO i przechowuj go jak dane dostępowe. Tryb `cold` zatrzymuje proces na czas kopii. W kopii znajdują się dane i opcje dodatku. Osadzone migracje są odtwarzane z obrazu przy starcie.
-- Przy odtwarzaniu wybierz kopię z OpenSOHO w Supervisorze. Sprawdź port, ustawienia, stan routerów, a następnie pobranie konfiguracji i nowe raporty. Jeżeli zmienił się adres LAN hosta, popraw URL na routerach.
-- Przed aktualizacją utwórz backup i zachowaj możliwość uruchomienia poprzedniego obrazu z jego kopią danych. Supervisor zachowuje `/data` przy wymianie obrazu. Cofnięcie obrazu po migracji może wymagać odtworzenia wcześniejszego backupu.
+## Backup, restore and updates
 
-## Diagnostyka
+- Create a Home Assistant backup including OpenSOHO and protect it as credential material. The `cold` backup mode stops the process for the snapshot. The backup contains add-on data and options. Embedded migrations are extracted from the image at startup.
+- To restore, select a backup containing OpenSOHO in Supervisor. Check the port, settings and router state, then verify configuration downloads and fresh monitoring reports. Update router URLs if the HA host's LAN address changed.
+- Before updating, create a backup and retain access to the previous image and its corresponding data backup. Supervisor preserves `/data` when replacing the image. Downgrading after a migration may require restoring an earlier backup.
 
-- **Panel zwraca 403.** Sprawdź rolę i aktywną sesję HA, otwórz panel z bocznego menu oraz sprawdź obsługę nagłówka grup przez wersję Supervisora. Usuń wcześniejsze cookie Ingress przy przełączaniu kont. Nagłówki z klienta LAN niczego tu nie odblokują.
-- **Brak zasobów lub API w panelu.** W narzędziach przeglądarki sprawdź, czy żądania do `/_/`, `/api/ha/session`, `/api/collections/` i `/api/realtime` mają ten sam prefiks `/api/hassio_ingress/<token>/`. Przy HTTPS sprawdź, czy adresy zasobów używają tego samego originu i protokołu co HA.
-- **Router nie dostaje konfiguracji.** Zweryfikuj port i osiągalność z sieci routera, sekret rejestracji oraz włączenie dostarczania konfiguracji dla urządzenia. Sprawdź logi `openwisp-config` i `openwisp-monitoring`, maskując klucze, sekret i dane konfiguracji.
-- **Błąd uruchomienia po restore.** Sprawdź, czy wolumen danych jest zapisywalny i Supervisor przywrócił plik opcji. Użyj obrazu właściwego dla kopii, jeśli migracja zgłasza błąd.
+## Troubleshooting
 
-## Budowanie i testy
+- **The panel returns 403.** Check your HA role and active session, open the panel from the sidebar and verify that your Supervisor version supplies the groups header. Clear an earlier Ingress cookie when switching accounts.
+- **Panel assets or API calls fail.** In browser developer tools, check that requests to `/_/`, `/api/ha/session`, `/api/collections/` and `/api/realtime` share the prefix `/api/hassio_ingress/<token>/`. With HTTPS, verify that assets use the same origin and protocol as HA.
+- **A router receives no configuration.** Check the published port, connectivity from the router network, registration secret and the device's configuration delivery setting. Inspect `openwisp-config` and `openwisp-monitoring` logs, redacting keys, secrets and configuration contents before sharing.
+- **Startup fails after a restore.** Check that the data volume is writable and Supervisor restored the options file. Use the image corresponding to the backup if a migration fails.
+
+## Building and testing
 
 ```sh
 docker buildx build --check opensoho
@@ -60,12 +67,25 @@ docker buildx build --platform linux/arm64 --load -t hass-open-soho:arm64 openso
 python3 tests/smoke.py --http-only
 ```
 
-Pełny smoke test korzysta z Playwright i Chromium. Zainstaluj `playwright==1.62.0` w lokalnym środowisku Pythona oraz `playwright install chromium` albo wskaż istniejące Chromium zmienną `CHROMIUM_BIN`. Uruchom `python3 tests/smoke.py`. Test wykorzystuje izolowaną sieć Docker i tymczasowy wolumen. Opcja `--replacement-image` pozwala przetestować drugą wersję przy zachowaniu tego samego wolumenu. W kontrolowanej sieci z własnym urzędem certyfikacji dodaj do komendy build `--secret id=build_ca,src=/ścieżka/do/zaufanego/bundle.pem`.
+The full smoke test uses Playwright and Chromium. Install `playwright==1.62.0` in a local Python environment and run `playwright install chromium`, or select an existing Chromium binary through `CHROMIUM_BIN`. Run `python3 tests/smoke.py`. The test creates an isolated Docker network and a temporary volume. Use `--replacement-image` to test a second image against the same volume. In a managed network with a private certificate authority, add `--secret id=build_ca,src=/path/to/trusted/bundle.pem` to the build command.
 
-GitHub Actions uruchamia lint workflow przez przypięty `actionlint`, kontrolę składni skryptów, formatowania Go i Dockerfile. Dwa zadania na natywnych runnerach `ubuntu-24.04` oraz `ubuntu-24.04-arm` wykonują testy Go i JavaScript, budują obraz dla własnej architektury oraz uruchamiają pełny test przeglądarkowy i wymianę obrazu. Workflow ma minimalne uprawnienia, limity czasu, cache zależny od architektury i anuluje starsze przebiegi tej samej gałęzi. Wywołuje się przy push, pull request i ręcznie.
+GitHub Actions runs workflow linting with pinned `actionlint`, script syntax checks, Go formatting checks and Dockerfile validation. Native jobs on `ubuntu-24.04` and `ubuntu-24.04-arm` run Go and JavaScript tests, build the image for their architecture and exercise browser behavior and image replacement. The workflow uses minimal permissions, timeouts and architecture-specific caches, and cancels older runs for the same branch. It runs on pushes, pull requests and manual dispatch.
 
-Zaktualizuj rewizje w `opensoho/scripts/sources.sh`, utrzymując zgodność wersji UI z modułem PocketBase w `go.mod` wersji OpenSOHO. Nałóż i w razie potrzeby zaktualizuj obie łatki w `opensoho/patches/`. Przejrzyj nowe ścieżki OpenWISP i obsługę Ingress, uruchom build oraz testy i przećwicz migrację na kopii danych. Podnieś wersję w `opensoho/config.yaml` i uzupełnij changelog.
+Installation through a real Supervisor, an external HTTPS domain and physical routers requires the [HA OS E2E scenario](tests/HA-OS-E2E.md).
 
-W stosunku do upstreamu dodatek dodaje adapter HA, dwa listenery, integrację z trwałym wolumenem i łatkę kodu źródłowego UI. PocketBase Go zachowuje oryginalną bibliotekę. OpenSOHO jest przypięte do `6349f37abcc43bc7f5d68db581fd4c1e328aaf2f`, PocketBase do `v0.40.5` (`6f370ea741f33adf889eef02e3c1b884a47aa522`). Message Relay posłużył do porównania przepływu sesji i nie dostarcza kodu temu repozytorium. Przejrzany checkout Message Relay nie zawierał pliku licencji. Przykład PocketBase HA App posłużył do sprawdzenia układu dodatku i opcji backupu. Licencja tego repozytorium to AGPL-3.0. [OpenSOHO](https://github.com/rubenbe/opensoho) · [Message Relay](https://github.com/nazt/wrw-msg/blob/main/pb_hooks/lib/halogin.js) · [PocketBase HA App](https://github.com/fabio-garavini/hassio-addons/tree/main/pocketbase)
+## Upstream releases and local patches
 
-Instalacja przez prawdziwy Supervisor, domena HTTPS i urządzenia fizyczne wymagają scenariusza z [HA OS E2E](tests/HA-OS-E2E.md).
+The dependency versions and immutable commits are recorded in `opensoho/upstream.env`. OpenSOHO uses stable release `v0.16.0` at `f54faedea50e5fa9569de3ee634f98f8b1565e32`. PocketBase UI uses `v0.40.5` at `6f370ea741f33adf889eef02e3c1b884a47aa522`, matching OpenSOHO's Go dependency.
+
+Two source patches provide the integration points needed by this add-on.
+
+- `opensoho.patch` lets the add-on entry point read Supervisor options, initialize persistent storage and register the HA adapter.
+- `pocketbase-ui.patch` makes API and asset URLs work below the dynamic Ingress prefix, initializes the UI from the HA session and adapts file downloads and settings changes to that session.
+
+The Go adapter is kept separately in `opensoho/overlay/`. PocketBase's Go library is used through its public API. Upstream support for an exported OpenSOHO startup hook and a configurable PocketBase UI session adapter would allow these patches to shrink.
+
+The **Upstream releases** workflow runs daily and on manual dispatch. It checks published semantic version releases of OpenSOHO and PocketBase, excluding drafts and prereleases. A newer stable release makes the check fail and adds release links to the run summary. Configure GitHub Actions notifications for this repository to receive alerts. Review the latest workflow run in the repository's Actions tab.
+
+For an update, review the release notes, update the release tag and commit together in `opensoho/upstream.env`, and keep the PocketBase UI version aligned with OpenSOHO's `go.mod`. Rebase the patches, review endpoint and Ingress changes, run builds and tests, and test migrations on a copy of existing data. Bump `opensoho/config.yaml` and update the changelog when shipping a new add-on version.
+
+Message Relay was inspected to compare session flows. Its inspected checkout contained no license file. The PocketBase HA App example was used to check the add-on layout and backup options. This repository is licensed under AGPL-3.0. [OpenSOHO](https://github.com/rubenbe/opensoho) · [Message Relay](https://github.com/nazt/wrw-msg/blob/main/pb_hooks/lib/halogin.js) · [PocketBase HA App](https://github.com/fabio-garavini/hassio-addons/tree/main/pocketbase)
