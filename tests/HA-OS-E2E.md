@@ -1,0 +1,10 @@
+# Test na rzeczywistym Home Assistant OS
+
+Status w środowisku chmurowym — niewykonany. Test lokalny używa obrazu dodatku i zastępczego Supervisora, który symuluje tożsamość użytkownika, adres TCP i zmienny prefiks Ingress.
+
+1. Dodaj repozytorium do Supervisora, zainstaluj OpenSOHO i uruchom z losowym sekretem. Sprawdź domyślne zabezpieczenia i logi. Na każdej architekturze sprawdź uruchomienie dodatku oraz start po restarcie hosta.
+2. Jako administrator otwórz panel z menu po adresie lokalnym i następnie z zewnętrznej domeny HTTPS. Sprawdź brak drugiego logowania, nawigację, odświeżenie, listę urządzeń, dashboard oraz żądania JS, CSS i API z prefiksem danej sesji. Sprawdź brak mieszanej zawartości. Otwórz połączenie SSE przez SDK i zweryfikuj zdarzenie przy zmianie rekordu urządzenia. PocketBase używa SSE do realtime.
+3. W osobnym profilu przeglądarki użyj zwykłego konta. Sprawdź brak panelu w menu oraz odmowę dla bezpośredniego URL panelu i samego endpointu sesji. Powtórz w profilu bez zalogowanego użytkownika. Z LAN odwiedź port agentów z nagłówkami Ingress i sprawdź odmowę dla panelu, endpointu sesji i uwierzytelniania PocketBase.
+4. Zaloguj się jako administrator. Sprawdź, że skrypt UI nie ma tokenu PocketBase. Wyloguj się z HA, z osobnej karty sprawdź wcześniejszy URL Ingress i zapisz zachowanie przed oraz po wygaśnięciu lub usunięciu cookie Ingress. Następnie zaloguj się ponownie i sprawdź, czy panel otwiera się we właściwej roli. Powtórz dla konta, któremu odebrano uprawnienia administratora. Sprawdź własną wersję Supervisora pod kątem odświeżania ról.
+5. Zarejestruj fizyczne routery. Sprawdź monitoring, a po zatwierdzeniu konfiguracji przez operatora sprawdź pobranie i zastosowanie konfiguracji. Potwierdź dostęp do internetu, LAN, DHCP, roaming oraz łączność z HA i kontrolerem.
+6. Zapisz identyfikatory urządzeń, aktualną konfigurację, port i raporty monitoringu. Zrestartuj dodatek, wykonaj zimny backup, zaktualizuj obraz, a następnie sprawdź ten sam stan po aktualizacji. Odtwórz kopię w bezpiecznej instancji i potwierdź, że routery mogą połączyć się z przywróconym kontrolerem.

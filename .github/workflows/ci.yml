@@ -1,0 +1,69 @@
+name: Add-on checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: "1.27.4"
+          cache: false
+      - name: Check workflow, scripts and Go formatting
+        run: |
+          go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck=
+          sh -n opensoho/scripts/sources.sh
+          python3 -m py_compile tests/*.py
+          test -z "$(gofmt -l opensoho/overlay)"
+          docker buildx build --check opensoho
+
+  verify:
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            architecture: amd64
+          - runner: ubuntu-24.04-arm
+            architecture: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+      - name: Run Go vet, Go tests, module verification and JavaScript tests
+        run: |
+          docker buildx build --target test \
+            --cache-from type=gha,scope=${{ matrix.architecture }} \
+            --cache-to type=gha,mode=max,scope=${{ matrix.architecture }} opensoho
+      - name: Build native runtime image
+        run: |
+          docker buildx build --platform linux/${{ matrix.architecture }} --load \
+            --cache-from type=gha,scope=${{ matrix.architecture }} \
+            -t hass-open-soho:local opensoho
+          test "$(docker image inspect hass-open-soho:local -f '{{.Architecture}}')" = "${{ matrix.architecture }}"
+      - name: Exercise Ingress, OpenWISP, browser and persistence
+        run: |
+          python3 -m venv "$RUNNER_TEMP/browser-env"
+          "$RUNNER_TEMP/browser-env/bin/pip" install 'playwright==1.62.0'
+          "$RUNNER_TEMP/browser-env/bin/playwright" install --with-deps chromium
+          docker build -t hass-open-soho:replacement -f - opensoho <<'DOCKERFILE'
+          FROM hass-open-soho:local
+          LABEL org.opencontainers.image.version="0.1.0-test-rebuild"
+          DOCKERFILE
+          "$RUNNER_TEMP/browser-env/bin/python" tests/smoke.py \
+            --replacement-image hass-open-soho:replacement

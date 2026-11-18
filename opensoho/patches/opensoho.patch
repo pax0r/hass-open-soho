@@ -1,0 +1,118 @@
+diff --git a/opensoho.go b/opensoho.go
+index 41ed722..a85fe7d 100644
+--- a/opensoho.go
++++ b/opensoho.go
+@@ -2690,7 +2690,6 @@ func generateDeviceConfig(app core.App, record *core.Record) ([]byte, string, er
+ 		// HostApdPskConfig needs to be called before the generateWifiConfigs
+ 		//wificonfigsstructs /*deviceHasPskConfig*/, _ := generateHostApdPskConfigs(app, wifirecords, &configfiles)
+ 		wificonfigs, has_vlan_config := generateWifiConfigs(wificonfigstructs, numradios, app, record)
+-		fmt.Println(wificonfigs)
+ 		if len(wificonfigs) > 0 {
+ 			configfiles["etc/config/wireless"] = wificonfigs
+ 		}
+@@ -2701,7 +2700,6 @@ func generateDeviceConfig(app core.App, record *core.Record) ([]byte, string, er
+ 
+ 	{
+ 		radioconfigs := generateRadioConfigs(record, app)
+-		fmt.Println(radioconfigs)
+ 		if len(radioconfigs) > 0 {
+ 			if existingconfig, ok := configfiles["etc/config/wireless"]; ok {
+ 				configfiles["etc/config/wireless"] = existingconfig + radioconfigs
+@@ -2721,14 +2719,12 @@ func generateDeviceConfig(app core.App, record *core.Record) ([]byte, string, er
+ 	}
+ 	{
+ 		sshkeyconfigs := generateSshKeyConfig(app)
+-		fmt.Println(sshkeyconfigs)
+ 		if len(sshkeyconfigs) > 0 {
+ 			configfiles["etc/dropbear/authorized_keys"] = sshkeyconfigs
+ 		}
+ 	}
+ 	{
+ 		interfacesconfigs := generateInterfacesConfig(app, record)
+-		fmt.Println(interfacesconfigs)
+ 		if len(interfacesconfigs) > 0 {
+ 			configfiles["etc/config/network"] = interfacesconfigs
+ 		}
+@@ -2736,7 +2732,6 @@ func generateDeviceConfig(app core.App, record *core.Record) ([]byte, string, er
+ 
+ 	{
+ 		dhcpconfigs := generateDhcpConfig(app, record)
+-		fmt.Println(dhcpconfigs)
+ 		if len(dhcpconfigs) > 0 {
+ 			configfiles["etc/config/dhcp"] = dhcpconfigs
+ 		}
+@@ -2997,7 +2992,6 @@ func updateInterface(app core.App, iface Interface, deviceId string, interfaceCo
+ 					"band", band, "mac", iface.MAC, "error", err)
+ 				return err
+ 			}
+-			fmt.Println(ifacerecords)
+ 		}
+ 	}
+ 	return nil
+@@ -3049,7 +3043,6 @@ func handleMonitoring(e *core.RequestEvent, app core.App, device *core.Record, c
+ 		report.radios = handleDeviceMonitoring(app, device, collection, payload, agentTime)
+ 	default:
+ 		errormsg := fmt.Sprintf(`Invalid type '%s' in JSON`, envelope.Type)
+-		fmt.Println(errormsg)
+ 		return e.BadRequestError(errormsg, ""), report
+ 	}
+ 	return e.Blob(200, "text/plain", []byte("")), report
+@@ -3459,7 +3452,6 @@ func handleDeviceRegistration(e *core.RequestEvent, shared_secret string, enable
+ 		System     string `form:"system"`
+ 	}{}
+ 	if err := e.BindBody(&data); err != nil {
+-		fmt.Println(err)
+ 		return e.BadRequestError("Missing fields", err)
+ 	}
+ 	if data.Secret != shared_secret {
+@@ -3682,7 +3674,7 @@ func saveDeviceConfig(app core.App, record *core.Record, data []byte, checksum s
+ 				return err
+ 			}
+ 		}
+-		fmt.Println("SAVED NEW CONFIG TO RECORD", record.GetString("config"), filename)
++		fmt.Println("Saved new device configuration")
+ 	} else {
+ 		fmt.Println("record config up to date")
+ 	}
+@@ -3700,25 +3692,13 @@ func GetDataDirPath() (string, error) {
+ 	return cwdPath, nil
+ }
+ 
+-func main() {
+-	shared_secret := os.Getenv("OPENSOHO_SHARED_SECRET")
+-	if shared_secret == "" {
+-		fmt.Println("OPENSOHO_SHARED_SECRET environment variable not set!")
+-		return
+-	}
+-	os.Unsetenv("OPENSOHO_SHARED_SECRET")
+-	var c pocketbase.Config
++func runOpenSOHO(sharedSecret string) {
+ 	cwdPath, err := GetDataDirPath()
+ 	if err != nil {
+-		fmt.Println("Error:", err)
+-		return
++		log.Fatal(err)
+ 	}
+-	c.DefaultDataDir = filepath.Join(cwdPath, "pb_data")
+-
+ 	app := pocketbase.NewWithConfig(pocketbase.Config{DefaultDataDir: filepath.Join(cwdPath, "pb_data")})
+-
+-	enableNewDevices := false
+-	bindAppHooks(app, shared_secret, enableNewDevices)
++	var enableNewDevices bool
+ 
+ 	// Upstream commands
+ 	// ---------------------------------------------------------------
+@@ -3756,7 +3736,11 @@ func main() {
+ 		"Turns off admin protections, only for development",
+ 	)
+ 
+-	app.RootCmd.ParseFlags(os.Args[1:])
++	if err := app.RootCmd.ParseFlags(os.Args[1:]); err != nil {
++		log.Fatal(err)
++	}
++	bindAppHooks(app, sharedSecret, enableNewDevices)
++	bindHomeAssistant(app)
+ 
+ 	app.OnSettingsListRequest().BindFunc(func(e *core.SettingsListRequestEvent) error {
+ 		e.Settings.Meta.AppName = "OpenSOHO"

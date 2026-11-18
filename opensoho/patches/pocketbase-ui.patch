@@ -1,0 +1,286 @@
+diff --git a/ui/src/base/appHeader.js b/ui/src/base/appHeader.js
+index a8b8686..72e0ecf 100644
+--- a/ui/src/base/appHeader.js
++++ b/ui/src/base/appHeader.js
+@@ -57,44 +57,7 @@ export function appHeader() {
+             ),
+             t.div({ className: "flex-fill app-header-separator" }),
+             colorSchemeButton(),
+-            t.button(
+-                {
+-                    type: "button",
+-                    className: "header-link logged-user txt-normal",
+-                    "html-popovertarget": "logged-user-dropdown",
+-                },
+-                t.span({ className: "superuser-name txt-ellipsis" }, () => app.store.superuser?.email),
+-                t.i({ className: "ri-arrow-drop-down-line", ariaHidden: true }),
+-            ),
+-            t.div(
+-                {
+-                    pbEvent: "loggedUserDropdown",
+-                    id: "logged-user-dropdown",
+-                    className: "dropdown sm nowrap logged-user-dropdown",
+-                    popover: "auto",
+-                },
+-                t.a(
+-                    {
+-                        className: "dropdown-item dropdown-item-manage",
+-                        href: "#/collections?collection=_superusers",
+-                        onclick: (e) => {
+-                            e.target.closest(".dropdown").hidePopover();
+-                        },
+-                    },
+-                    t.i({ className: "ri-group-line", ariaHidden: true }),
+-                    t.span({ className: "txt" }, "Manage superusers"),
+-                ),
+-                t.hr(),
+-                t.button(
+-                    {
+-                        type: "button",
+-                        className: "dropdown-item txt-danger dropdown-item-logout",
+-                        onclick: () => app.pb.authStore.clear(),
+-                    },
+-                    t.i({ className: "ri-logout-circle-line", ariaHidden: true }),
+-                    t.span({ className: "txt" }, "Logout"),
+-                ),
+-            ),
++            t.span({ className: "header-link txt-normal" }, "Home Assistant"),
+         );
+     };
+ }
+diff --git a/ui/src/main.js b/ui/src/main.js
+index 159a55e..74eb1d5 100644
+--- a/ui/src/main.js
++++ b/ui/src/main.js
+@@ -137,11 +137,13 @@ watch(
+ document.body.appendChild(t.script({
+     type: "module", // allow top-level await
+     src: app.pb.buildURL("/_/extensions.js"),
+-    onload: () => {
++    onload: async () => {
++        await app.loadHomeAssistantSession();
+         app.store._ready = true;
+     },
+-    onerror: (err) => {
+-        console.warn("Failed to load extensions:", err);
++    onerror: async () => {
++        console.warn("Failed to load OpenSOHO extensions");
++        await app.loadHomeAssistantSession();
+         app.store._ready = true;
+     },
+ }));
+diff --git a/ui/src/pb.js b/ui/src/pb.js
+index bda1530..4e6f155 100644
+--- a/ui/src/pb.js
++++ b/ui/src/pb.js
+@@ -1,21 +1,31 @@
+-import PocketBase, { isTokenExpired, LocalAuthStore } from "pocketbase";
++import PocketBase, { BaseAuthStore } from "pocketbase";
+ 
+ const LOGIN_PATH = "#/login";
+ 
+-const currentPath = window.location.pathname.endsWith("/")
+-    ? window.location.pathname.substring(0, window.location.pathname.length - 1)
+-    : window.location.pathname;
++// This UI lives at <ingress-prefix>/_/. The SDK also uses its base URL
++// for OpenSOHO API calls, file downloads and the realtime EventSource.
++const apiBase = new URL("../", window.location.href).href;
++class HomeAssistantAuthStore extends BaseAuthStore {
++    get isValid() {
++        return Boolean(this.record?.id);
++    }
++}
+ 
+ window.app = window.app || {};
+-window.app.pb = new PocketBase(
+-    import.meta.env.PB_BACKEND_URL,
+-    // concatenate the path in case hosted under subpath alongside other apps
+-    new LocalAuthStore("__pb_superusers__" + currentPath),
+-);
++window.app.pb = new PocketBase(apiBase, new HomeAssistantAuthStore());
++window.app.loadHomeAssistantSession = async function() {
++    try {
++        const record = await app.pb.send("/api/ha/session", { method: "GET" });
++        app.pb.authStore.save("", record);
++    } catch {
++        app.pb.authStore.clear();
++    }
++};
+ 
+ // add UI specific header to all requests
+ app.pb.beforeSend = function(url, options) {
+     options.headers["x-request-source"] = "pbui";
++    options.headers["X-OpenSOHO-UI"] = "1";
+     return { url, options };
+ };
+ 
+@@ -29,22 +39,6 @@ app.pb.authStore.onChange((_, record) => {
+     app.store.superuser = record;
+ });
+ 
+-// refresh the token in the background
+-if (app.pb.authStore.isValid) {
+-    app.pb.collection(app.pb.authStore.record?.collectionName || "_superusers")
+-        .authRefresh()
+-        .catch((err) => {
+-            console.warn("Failed to refresh the existing auth token:", err);
+-
+-            // clear the store only on invalidated/expired token
+-            const status = err?.status << 0;
+-            if (status == 401 || status == 403) {
+-                app.pb.cancelAllRequests();
+-                app.pb.authStore.clear();
+-            }
+-        });
+-}
+-
+ // load initial store data
+ app.pb.authStore.onChange((_, record) => {
+     if (record?.id) {
+@@ -113,72 +107,8 @@ function bindRecordServiceEvents(service) {
+     };
+ }
+ 
+-// File token helpers
+-// -------------------------------------------------------------------
+-
+-const LAST_FILE_TOKEN_KEY = "pbLastFileToken";
+-let isFileTokenLoading = false;
+-let fileTokenPromises = [];
+-
+-// clear stored token on logout
+-app.pb.authStore.onChange((_, record) => {
+-    if (!record?.id) {
+-        window.localStorage.removeItem(LAST_FILE_TOKEN_KEY);
+-    }
+-});
+-
+-/**
+- * Return a superuser file token.
+- * Optionally you can provide a collection identifier, to avoid unnecessary
+- * calls in case the collection doesn't have protected files.
+- *
+- * @param  {String} optCollectionIdORName
+- * @return {Promise<string>}
+- */
+-window.app.getFileToken = async function(optCollectionIdORName = "") {
+-    // check if the collection needs a file token
+-    const collection = optCollectionIdORName
+-        && app.store.collections?.find((c) => c.id == optCollectionIdORName || c.name == optCollectionIdORName);
+-    if (collection) {
+-        const hasProtectedFile = collection.fields?.find((f) => f.type == "file" && f.protected);
+-        if (!hasProtectedFile) {
+-            return;
+-        }
+-    }
+-
+-    let token = window.localStorage.getItem(LAST_FILE_TOKEN_KEY);
+-
+-    if (!token || isTokenExpired(token, 60)) {
+-        token = await fetchFileToken();
+-    }
+-
+-    return token;
+-};
+-
+-async function fetchFileToken() {
+-    return new Promise(async (resolve, reject) => {
+-        fileTokenPromises.push({ resolve, reject });
+-
+-        if (isFileTokenLoading) {
+-            return;
+-        }
+-
+-        isFileTokenLoading = true;
+-
+-        try {
+-            const token = await app.pb.files.getToken();
+-
+-            window.localStorage.setItem(LAST_FILE_TOKEN_KEY, token);
+-
+-            fileTokenPromises.forEach((p) => p.resolve(token));
+-        } catch (err) {
+-            fileTokenPromises.forEach((p) => p.reject(err));
+-        }
+-
+-        isFileTokenLoading = false;
+-        fileTokenPromises = [];
+-    });
+-}
++// Protected file URLs are authorized by the backend on every Ingress request.
++app.getFileToken = async function() {};
+ 
+ /**
+  * Generic API error handler that loads the response error into the app store
+@@ -225,7 +155,7 @@ window.app.checkApiError = function(err, showToast = true) {
+     }
+ 
+     // unauthorized
+-    if (statusCode === 401 && window.location.hash != LOGIN_PATH) {
++    if ((statusCode === 401 || statusCode === 403) && window.location.hash != LOGIN_PATH) {
+         app.pb.cancelAllRequests();
+         return app.pb.authStore.clear();
+     }
+diff --git a/ui/src/router.js b/ui/src/router.js
+index 29e19dd..5ce1934 100644
+--- a/ui/src/router.js
++++ b/ui/src/router.js
+@@ -1,4 +1,3 @@
+-import { pageSuperuserLogin } from "@/auth/pageSuperuserLogin";
+ import { pageCollections } from "@/collections/pageCollections";
+ import { pageLogs } from "@/logs/pageLogs";
+ import { pageApplicationSettings } from "@/settings/application/pageApplicationSettings";
+@@ -126,19 +125,14 @@ export function initRouter() {
+ 
+ // -------------------------------------------------------------------
+ 
+-app.routes.guestOnly("#/pbinstall/{token}", async (route) => {
+-    const { pageInstaller } = await import("@/auth/pageInstaller");
+-    return pageInstaller(route);
++app.routes.guestOnly("#/login", () => {
++    return t.div(
++        { className: "wrapper sm m-auto p-b-base" },
++        t.h5(null, "Home Assistant session required"),
++        t.p(null, "Open OpenSOHO from the Home Assistant sidebar using an administrator account."),
++        t.button({ className: "btn", onclick: () => window.location.reload() }, "Reload"),
++    );
+ });
+-app.routes.guestOnly("#/login", (route) => {
+-    return pageSuperuserLogin(route);
+-});
+-app.routes.guestOnly("#/request-password-reset", async (route) => {
+-    const { pageRequestSuperuserPasswordReset } = await import("@/auth/pageRequestSuperuserPasswordReset");
+-    return pageRequestSuperuserPasswordReset(route);
+-});
+-
+-// email confirmation actions
+ app.routes.blank("#/auth/confirm-password-reset/{token}", async (route) => {
+     const { pageConfirmPasswordReset } = await import("@/auth/pageConfirmPasswordReset");
+     return pageConfirmPasswordReset(route);
+diff --git a/ui/src/settings/application/pageApplicationSettings.js b/ui/src/settings/application/pageApplicationSettings.js
+index 81b13f3..30c87fe 100644
+--- a/ui/src/settings/application/pageApplicationSettings.js
++++ b/ui/src/settings/application/pageApplicationSettings.js
+@@ -110,7 +110,7 @@ export function pageApplicationSettings() {
+             // reauthenticate to ensure that the superuser has still access
+             if (hasSuperuserIPsChanged()) {
+                 try {
+-                    await app.pb.collection("_superusers").authRefresh();
++                    await app.loadHomeAssistantSession();
+                 } catch (_) {
+                     app.pb.authStore.clear();
+                 }
+diff --git a/ui/src/settings/backups/backupsList.js b/ui/src/settings/backups/backupsList.js
+index 648047e..4161722 100644
+--- a/ui/src/settings/backups/backupsList.js
++++ b/ui/src/settings/backups/backupsList.js
+@@ -89,8 +89,7 @@ export function backupsList(propsArg = {}) {
+         data.isDownloading[key] = true;
+ 
+         try {
+-            const token = await app.pb.files.getToken({ requestKey: null });
+-            app.utils.download(app.pb.backups.getDownloadURL(token, key));
++            app.utils.download(app.pb.backups.getDownloadURL("", key));
+         } catch (err) {
+             app.checkApiError(err);
+         }
