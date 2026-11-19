@@ -20,10 +20,10 @@ Restrict port 8090 to trusted routers or a management network. HTTP on this port
 
 ## OpenWrt 25.12 routers
 
-1. On the Cudy WR3000H and TP-Link Archer C6 v2, check that `openwisp-config` and `openwisp-monitoring` are running. In LuCI, set **Server URL** to `http://<HA-LAN-IP>:8090` with no trailing slash, and **Shared secret** to the value configured in the add-on. Reuse packages that are already installed.
-2. Start or restart `/etc/init.d/openwisp-config` and `/etc/init.d/openwisp-monitoring`. If you need the OpenWISP LuCI interface, use `apk add luci-app-openwisp` on 25.12. Check the `wpad-mbedtls` and `usteer` packages on both devices when configuring roaming.
-3. Confirm both devices appear under **Configuration → Devices** and report their status. The default `enable_new_devices: false` allows registration and inspection before configuration delivery. Changing this option affects newly registered devices. Enable configuration delivery individually after reviewing the preview.
-4. Back up both routers. On the Cudy, check PPPoE, LAN, DHCP, firewall rules and recovery access. On the Archer, confirm the bridge and wired uplink settings and verify that a second DHCP server is disabled. Compare proposed changes with the current UCI configuration before enabling delivery.
+1. On each router, check that `openwisp-config` and `openwisp-monitoring` are running. In LuCI, set **Server URL** to `http://<HA-LAN-IP>:8090` with no trailing slash, and **Shared secret** to the value configured in the add-on. Reuse packages that are already installed.
+2. Start or restart `/etc/init.d/openwisp-config` and `/etc/init.d/openwisp-monitoring`. If you need the OpenWISP LuCI interface, use `apk add luci-app-openwisp` on 25.12. Check the `wpad-mbedtls` and `usteer` packages on each device that participates in roaming.
+3. Confirm each router appears under **Configuration → Devices** and reports its status. The default `enable_new_devices: false` allows registration and inspection before configuration delivery. Changing this option affects newly registered devices. Enable configuration delivery individually after reviewing the preview.
+4. Back up each router. On the gateway, check PPPoE, LAN, DHCP, firewall rules and recovery access. On bridged access points, check the bridge and wired uplink settings and verify that DHCP is disabled on the access point if the gateway provides it. Compare proposed changes with the current UCI configuration before enabling delivery.
 
 The agent listener permits the exact OpenSOHO methods and paths below. OpenSOHO validates the OpenWISP secrets and device keys. [OpenSOHO entry point](https://github.com/rubenbe/opensoho/blob/f54faedea50e5fa9569de3ee634f98f8b1565e32/opensoho.go)
 
