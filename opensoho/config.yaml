@@ -21,7 +21,7 @@ panel_icon: mdi:router-wireless
 ports:
   8090/tcp: 8090
 ports_description:
-  8090/tcp: OpenWISP agents and native OpenSOHO/PocketBase API on your LAN
+  8090/tcp: OpenWISP agents on your LAN
 options:
   shared_secret: ""
   enable_new_devices: false

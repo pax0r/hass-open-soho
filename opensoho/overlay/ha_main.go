@@ -114,7 +114,7 @@ const ingressAccount = "ha-ingress@opensoho.invalid"
 type ingressAccountKey struct{}
 
 func bindHomeAssistant(app core.App) {
-	lanServer := &http.Server{
+	agentServer := &http.Server{
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       60 * time.Second,
 		WriteTimeout:      60 * time.Second,
@@ -129,7 +129,7 @@ func bindHomeAssistant(app core.App) {
 			}
 			e.InstallerFunc = nil
 			// Default PocketBase access logs include the full URL and referrer.
-			e.Router.Unbind(apis.DefaultActivityLoggerMiddlewareId)
+			e.Router.Unbind(apis.DefaultActivityLoggerMiddlewareId, apis.DefaultCorsMiddlewareId)
 			e.Router.Bind(&hook.Handler[*core.RequestEvent]{
 				Priority: apis.DefaultLoadAuthTokenMiddlewarePriority - 1,
 				Func: func(request *core.RequestEvent) error {
@@ -148,15 +148,15 @@ func bindHomeAssistant(app core.App) {
 			e.Server.Handler = ingress
 			listener, err := net.Listen("tcp4", "0.0.0.0:8090")
 			if err != nil {
-				return fmt.Errorf("start LAN listener: %w", err)
+				return fmt.Errorf("start OpenWISP listener: %w", err)
 			}
-			lanServer.Handler = lanHandler(mux)
+			agentServer.Handler = agentHandler(mux)
 			go func() {
-				if err := lanServer.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
-					log.Fatal("LAN listener stopped: ", err)
+				if err := agentServer.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
+					log.Fatal("OpenWISP listener stopped: ", err)
 				}
 			}()
-			log.Print("LAN listener ready on :8090, Home Assistant Ingress on :8091")
+			log.Print("OpenWISP listener ready on :8090, Home Assistant Ingress on :8091")
 			return nil
 		},
 	})
@@ -165,8 +165,8 @@ func bindHomeAssistant(app core.App) {
 		Func: func(e *core.TerminateEvent) error {
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
-			if err := lanServer.Shutdown(ctx); err != nil {
-				_ = lanServer.Close()
+			if err := agentServer.Shutdown(ctx); err != nil {
+				_ = agentServer.Close()
 			}
 			return e.Next()
 		},

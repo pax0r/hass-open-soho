@@ -17,7 +17,7 @@ Use the existing checkout in isolated cloud tasks. Create a worktree only when e
 
 ## Security and compatibility
 
-Authorize panel requests using the trusted Supervisor TCP peer and the administrator group supplied by Ingress. Keep the panel and HA session on internal port 8091. The LAN listener on port 8090 forwards the native OpenSOHO, PocketBase and OpenWISP routes with upstream authentication and access rules.
+Authorize panel requests using the trusted Supervisor TCP peer and the administrator group supplied by Ingress. Keep the panel and administrative API on internal port 8091. The LAN listener on port 8090 accepts the specific OpenWISP methods and paths in the gateway.
 
 Keep HA session validation on the backend. Browser state must carry no PocketBase administrative token. Keep secrets, device keys, configuration contents and Ingress tokens out of logs.
 

@@ -96,7 +96,7 @@ func TestIngressRoutesAndSession(t *testing.T) {
 		{"POST", "/api/collections/_superusers/auth-refresh", 404},
 		{"POST", "/api/files/token", 404},
 		{"POST", "/api/batch", 404},
-		{"POST", monitorAPI + "/", 404},
+		{"POST", monitorAPI + "/" + testUUID + "/", 404},
 		{"OPTIONS", "/api/collections/devices/records", 403},
 	} {
 		t.Run(tc.method+" "+tc.target, func(t *testing.T) {
@@ -121,14 +121,11 @@ func TestIngressRoutesAndSession(t *testing.T) {
 	}
 }
 
-func TestLANListenerRoutesAndCredentials(t *testing.T) {
-	handler := lanHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func TestAgentListenerOnlyExposesOpenWISP(t *testing.T) {
+	handler := agentHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Context().Value(ingressAccountKey{}) != nil || r.Header.Get("X-Remote-User-Groups") != "" ||
-			r.Header.Get("X-Forwarded-For") != "" || r.Header.Get("Cookie") != "" {
-			t.Error("LAN request acquired proxy credentials")
-		}
-		if r.Header.Get("Authorization") != "client-token" || r.Header.Get("Origin") != "http://client.example" {
-			t.Error("native Authorization or Origin was not forwarded")
+			r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
+			t.Error("agent acquired panel identity")
 		}
 		if r.URL.Query().Get("key") != "test-key" {
 			t.Error("OpenWISP key was not forwarded")
@@ -147,32 +144,23 @@ func TestLANListenerRoutesAndCredentials(t *testing.T) {
 		{"GET", "/controller/download-config/" + testUUID + "/", 204},
 		{"POST", monitorAPI + "/", 204},
 		{"POST", monitorAPI + "/" + testUUID + "/", 204},
-		{"GET", "/api/health", 204},
-		{"GET", "/api/v1/devicestatus/02%3A01%3A02%3A03%3A04%3A05", 204},
-		{"POST", "/api/collections/api_users/auth-with-password", 204},
-		{"GET", "/api/collections/devices/records", 204},
-		{"GET", "/api/realtime", 204},
-		{"GET", "/", 404},
+		{"GET", monitorAPI + "/" + testUUID + "/", 404},
+		{"POST", monitorAPI + "/invalid/", 404},
+		{"POST", monitorAPI + "/" + testUUID + "/extra/", 404},
+		{"GET", "/api/v1/network-overview", 404},
 		{"GET", "/_/", 404},
-		{"GET", "/_/extensions/opensoho/main.js", 404},
 		{"GET", sessionAPI, 404},
 		{"POST", sessionAPI, 404},
-		{"GET", "/api/%68a/session", 404},
-		{"POST", "/api/collections/_superusers/auth-with-password", 204},
-		{"GET", "/api/backups/test.zip", 204},
-		{"GET", "/api/%2e%2e/_/", 404},
-		{"GET", "/api/v1%2fdevicestatus/test", 404},
-		{"GET", "/controller/checksum/" + testUUID, 204},
+		{"POST", "/api/collections/_superusers/auth-with-password", 404},
+		{"GET", "/controller/checksum/" + testUUID, 404},
 		{"GET", "/controller/checksum/../", 404},
 		{"GET", "/controller//checksum/" + testUUID + "/", 404},
-		{"PUT", "/controller/register/", 204},
+		{"PUT", "/controller/register/", 404},
 	} {
 		t.Run(tc.method+" "+tc.target, func(t *testing.T) {
 			r := request(tc.method, tc.target+"?key=test-key")
 			r.Header.Set("Authorization", "client-token")
-			r.Header.Set("Origin", "http://client.example")
 			r.Header.Set("Cookie", "ingress_session=example")
-			r.Header.Set("X-Forwarded-For", supervisorPeer.String())
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, r)
 			if w.Code != tc.status {
