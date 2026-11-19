@@ -7,8 +7,8 @@ A Home Assistant OS add-on for Supervisor installations on `amd64` and `aarch64`
 1. Ensure the branch available to Supervisor contains `repository.yaml` and the `opensoho/` directory. In the Home Assistant add-on store, open the repositories menu and add `https://github.com/pax0r/hass-open-soho`. For a local installation, place `opensoho/` in the HA OS local add-ons directory and refresh the store.
 2. Install **OpenSOHO**. Supervisor builds the image from pinned revisions. The initial build requires access to Docker Hub image downloads, Debian packages, GitHub, npm and the public Go module proxy. The running controller operates locally. The image includes web assets and time zone data.
 3. Set `shared_secret` in the add-on configuration. Generate 64 characters with `openssl rand -hex 32` on a trusted computer. The add-on requires at least 32 characters. Keep the value for router registration.
-4. Enable **Show in sidebar** on the add-on page. Supervisor stores this as an instance setting. Start the add-on, sign in to HA as an administrator and open **OpenSOHO** in the sidebar. Use your usual local HA address or external HTTPS address. Keep your existing VPS, reverse proxy and WireGuard configuration.
-5. Assign a stable LAN address to the HA host. The default agent port is `8090/tcp`. If you change it in the add-on's network settings, update the controller URL on the routers.
+4. Enable **Show in sidebar** on the add-on page. Supervisor stores this as an instance setting. Start the add-on, sign in to HA as an administrator and open **OpenSOHO** in the sidebar. Use your usual local or external HA address.
+5. Give the HA host a stable LAN address. Point the routers' OpenWISP **Server URL** at `http://<HA-LAN-IP>:8090` with no trailing slash, and use the same **Shared secret** as the add-on. If you change the published port in the add-on's network settings, update the router URLs. The add-on defaults to `enable_new_devices: false`, so new devices register with configuration delivery disabled.
 
 | Address or path | Purpose |
 | --- | --- |
@@ -18,22 +18,7 @@ A Home Assistant OS add-on for Supervisor installations on `amd64` and `aarch64`
 
 Restrict port 8090 to trusted routers or a management network. HTTP on this port sends registration secrets, device keys and configuration without encryption. Supervisor accesses port 8091 within the HA network.
 
-## OpenWrt 25.12 routers
-
-1. On each router, check that `openwisp-config` and `openwisp-monitoring` are running. In LuCI, set **Server URL** to `http://<HA-LAN-IP>:8090` with no trailing slash, and **Shared secret** to the value configured in the add-on. Reuse packages that are already installed.
-2. Start or restart `/etc/init.d/openwisp-config` and `/etc/init.d/openwisp-monitoring`. If you need the OpenWISP LuCI interface, use `apk add luci-app-openwisp` on 25.12. Check the `wpad-mbedtls` and `usteer` packages on each device that participates in roaming.
-3. Confirm each router appears under **Configuration → Devices** and reports its status. The default `enable_new_devices: false` allows registration and inspection before configuration delivery. Changing this option affects newly registered devices. Enable configuration delivery individually after reviewing the preview.
-4. Back up each router. On the gateway, check PPPoE, LAN, DHCP, firewall rules and recovery access. On bridged access points, check the bridge and wired uplink settings and verify that DHCP is disabled on the access point if the gateway provides it. Compare proposed changes with the current UCI configuration before enabling delivery.
-
-The agent listener permits the exact OpenSOHO methods and paths below. OpenSOHO validates the OpenWISP secrets and device keys. [OpenSOHO entry point](https://github.com/rubenbe/opensoho/blob/f54faedea50e5fa9569de3ee634f98f8b1565e32/opensoho.go)
-
-- `POST /controller/register/`
-- `POST /controller/report-status/<uuid>/`
-- `POST /controller/update-info/<uuid>/`
-- `GET /controller/checksum/<uuid>/`
-- `GET /controller/download-config/<uuid>/`
-- `POST /api/v1/monitoring/device/`
-- `POST /api/v1/monitoring/device/<uuid>/?key=<device-key>`
+For OpenWrt packages, router setup and day-to-day configuration, see the [OpenSOHO documentation](https://opensoho.github.io/docs) and the [router setup guide for v0.16.0](https://github.com/rubenbe/opensoho/blob/f54faedea50e5fa9569de3ee634f98f8b1565e32/docs/content/en/docs/getting-started.md#configure-openwrt-devices).
 
 ## SSO and session behavior
 
@@ -55,7 +40,7 @@ Agent operation continues independently of panel authorization. The add-on prepa
 
 - **The panel returns 403.** Check your HA role and active session, open the panel from the sidebar and verify that your Supervisor version supplies the groups header. Clear an earlier Ingress cookie when switching accounts.
 - **Panel assets or API calls fail.** In browser developer tools, check that requests to `/_/`, `/api/ha/session`, `/api/collections/` and `/api/realtime` share the prefix `/api/hassio_ingress/<token>/`. With HTTPS, verify that assets use the same origin and protocol as HA.
-- **A router receives no configuration.** Check the published port, connectivity from the router network, registration secret and the device's configuration delivery setting. Inspect `openwisp-config` and `openwisp-monitoring` logs, redacting keys, secrets and configuration contents before sharing.
+- **A router cannot reach the add-on.** Check the published port, LAN connectivity and that the shared secret in the add-on matches the router's setting.
 - **Startup fails after a restore.** Check that the data volume is writable and Supervisor restored the options file. Use the image corresponding to the backup if a migration fails.
 
 ## Building and testing
