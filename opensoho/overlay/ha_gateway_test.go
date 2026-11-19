@@ -96,6 +96,7 @@ func TestIngressRoutesAndSession(t *testing.T) {
 		{"POST", "/api/collections/_superusers/auth-refresh", 404},
 		{"POST", "/api/files/token", 404},
 		{"POST", "/api/batch", 404},
+		{"POST", monitorAPI + "/" + testUUID + "/", 404},
 		{"OPTIONS", "/api/collections/devices/records", 403},
 	} {
 		t.Run(tc.method+" "+tc.target, func(t *testing.T) {
@@ -141,7 +142,12 @@ func TestAgentListenerOnlyExposesOpenWISP(t *testing.T) {
 		{"POST", "/controller/update-info/" + testUUID + "/", 204},
 		{"GET", "/controller/checksum/" + testUUID + "/", 204},
 		{"GET", "/controller/download-config/" + testUUID + "/", 204},
-		{"POST", "/api/v1/monitoring/device/", 204},
+		{"POST", monitorAPI + "/", 204},
+		{"POST", monitorAPI + "/" + testUUID + "/", 204},
+		{"GET", monitorAPI + "/" + testUUID + "/", 404},
+		{"POST", monitorAPI + "/invalid/", 404},
+		{"POST", monitorAPI + "/" + testUUID + "/extra/", 404},
+		{"GET", "/api/v1/network-overview", 404},
 		{"GET", "/_/", 404},
 		{"GET", sessionAPI, 404},
 		{"POST", sessionAPI, 404},

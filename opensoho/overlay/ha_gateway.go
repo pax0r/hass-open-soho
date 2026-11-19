@@ -20,15 +20,18 @@ import (
 var supervisorPeer = netip.MustParseAddr("172.30.32.2")
 
 var (
-	ingressPath = regexp.MustCompile(`^/api/hassio_ingress/[A-Za-z0-9_-]{1,256}$`)
-	haUserID    = regexp.MustCompile(`^[a-f0-9]{32}$`)
-	agentCheck  = regexp.MustCompile(`^/controller/(checksum|download-config)/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/$`)
-	agentUpdate = regexp.MustCompile(`^/controller/(report-status|update-info)/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/$`)
+	ingressPath  = regexp.MustCompile(`^/api/hassio_ingress/[A-Za-z0-9_-]{1,256}$`)
+	haUserID     = regexp.MustCompile(`^[a-f0-9]{32}$`)
+	agentCheck   = regexp.MustCompile(`^/controller/(checksum|download-config)/` + deviceUUID + `/$`)
+	agentUpdate  = regexp.MustCompile(`^/controller/(report-status|update-info)/` + deviceUUID + `/$`)
+	agentMonitor = regexp.MustCompile(`^` + monitorAPI + `/` + deviceUUID + `/$`)
 )
 
 const (
 	haUIHeader = "X-OpenSOHO-UI"
 	sessionAPI = "/api/ha/session"
+	monitorAPI = "/api/v1/monitoring/device"
+	deviceUUID = `[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}`
 	panelCSP   = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'"
 )
 
@@ -58,7 +61,7 @@ func agentHandler(next http.Handler) http.Handler {
 		p := r.URL.Path
 		get := r.Method == http.MethodGet && agentCheck.MatchString(p)
 		post := r.Method == http.MethodPost && (p == "/controller/register/" ||
-			p == "/api/v1/monitoring/device/" || agentUpdate.MatchString(p))
+			p == monitorAPI+"/" || agentMonitor.MatchString(p) || agentUpdate.MatchString(p))
 		if !canonicalURL(r) || (!get && !post) {
 			http.NotFound(w, r)
 			return
@@ -159,7 +162,7 @@ func allowedPanelPath(p string, read bool, superuserCollectionID string) bool {
 		return read
 	case !strings.HasPrefix(p, "/api/"):
 		return false
-	case p == "/api/v1/monitoring/device/" || p == "/api/oauth2-redirect" ||
+	case p == monitorAPI || strings.HasPrefix(p, monitorAPI+"/") || p == "/api/oauth2-redirect" ||
 		p == "/api/files/token" || p == "/api/batch":
 		return false
 	}

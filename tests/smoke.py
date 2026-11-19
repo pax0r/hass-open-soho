@@ -204,6 +204,7 @@ def smoke(image, replacement, use_browser):
                 request(agent, "/api/ha/session", headers=forged_headers, expected=404)
                 request(agent, "/_/", headers=forged_headers, expected=404)
                 request(agent, "/api/collections/_superusers/auth-with-password", "POST", expected=404)
+                request(agent, "/api/v1/network-overview", headers=forged_headers, expected=404)
                 request(ingress, prefix + "/api/ha/session", headers=forged_headers, expected=403)
                 user_headers = forged_headers | {"Cookie": "test_session=" + user}
                 request(ingress, prefix + "/api/ha/session", headers=user_headers, expected=403)
@@ -232,7 +233,8 @@ def smoke(image, replacement, use_browser):
                 assert lines["is-new"] == "1"
                 checksum_path = f"/controller/checksum/{uuid}/?key={key}"
                 download_path = f"/controller/download-config/{uuid}/?key={key}"
-                monitor_path = f"/api/v1/monitoring/device/?key={key}&current=true"
+                monitor_endpoint = f"/api/v1/monitoring/device/{uuid}/"
+                monitor_path = f"{monitor_endpoint}?key={key}"
                 monitoring = json.dumps({
                     "type": "DeviceMonitoring", "interfaces": [],
                     "general": {"local_time": int(time.time()), "uptime": 42},
@@ -242,11 +244,19 @@ def smoke(image, replacement, use_browser):
                 assert hashlib.md5(archive, usedforsecurity=False).hexdigest().encode() == checksum
                 with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as bundle:
                     assert "etc/config/openwisp-monitoring" in bundle.getnames(), bundle.getnames()
-                request(agent, monitor_path, "POST", monitoring, {"Content-Type": "application/json"})
+                json_headers = {"Content-Type": "application/json"}
+                request(agent, monitor_endpoint, "POST", monitoring, json_headers, 403)
+                request(agent, f"{monitor_endpoint}?key={secrets.token_hex(16)}",
+                        "POST", monitoring, json_headers, 403)
+                request(agent, monitor_path, "POST", monitoring, json_headers)
+                request(ingress, prefix + monitor_endpoint, "POST", monitoring,
+                        admin_headers | json_headers, 404)
                 devices_path = prefix + "/api/collections/devices/records"
                 result, _ = request(ingress, devices_path, headers=admin_headers)
                 record = json.loads(result)["items"][0]
                 assert record["name"] == "smoke-router" and record["health_status"] == "healthy"
+                request(agent, f"/api/v1/monitoring/device/?key={key}&current=true",
+                        "POST", monitoring, json_headers)
                 file_path = prefix + f"/api/files/{record['collectionId']}/{record['id']}/{record['config']}"
                 panel_archive, _ = request(ingress, file_path, headers=admin_headers)
                 assert panel_archive == archive
