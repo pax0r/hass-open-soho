@@ -22,52 +22,61 @@ var supervisorPeer = netip.MustParseAddr("172.30.32.2")
 var (
 	ingressPath = regexp.MustCompile(`^/api/hassio_ingress/[A-Za-z0-9_-]{1,256}$`)
 	haUserID    = regexp.MustCompile(`^[a-f0-9]{32}$`)
-	agentCheck  = regexp.MustCompile(`^/controller/(checksum|download-config)/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/$`)
-	agentUpdate = regexp.MustCompile(`^/controller/(report-status|update-info)/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/$`)
 )
 
 const (
 	haUIHeader = "X-OpenSOHO-UI"
 	sessionAPI = "/api/ha/session"
+	monitorAPI = "/api/v1/monitoring/device"
 	panelCSP   = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'"
 )
 
 func canonicalURL(r *http.Request) bool {
-	p := r.URL.Path
-	return r.URL.RawPath == "" && strings.HasPrefix(p, "/") && !strings.ContainsAny(p, "\\\x00") &&
+	return r.URL.RawPath == "" && canonicalPath(r.URL.Path)
+}
+
+func canonicalPath(p string) bool {
+	return strings.HasPrefix(p, "/") && !strings.ContainsAny(p, "\\\x00") &&
 		(p == "/" || path.Clean(p) == strings.TrimSuffix(p, "/"))
 }
 
-func stripClientCredentials(r *http.Request) {
+func stripClientHeaders(r *http.Request, ingress bool) {
+	if ingress {
+		r.Header.Del("Authorization")
+		r.Header.Del("Origin")
+	}
 	for name := range r.Header {
 		nameLower := strings.ToLower(name)
 		switch {
 		case strings.HasPrefix(nameLower, "x-remote-user-"),
 			strings.HasPrefix(nameLower, "x-forwarded-"),
 			nameLower == "x-ingress-path", nameLower == "x-hass-source",
-			nameLower == "forwarded", nameLower == "authorization",
-			nameLower == "cookie", nameLower == "referer", nameLower == "origin",
+			nameLower == "forwarded",
+			nameLower == "cookie", nameLower == "referer",
 			nameLower == "x-supervisor-token", nameLower == "x-hassio-key":
 			r.Header.Del(name)
 		}
 	}
 }
 
-func agentHandler(next http.Handler) http.Handler {
+func lanHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Path
-		get := r.Method == http.MethodGet && agentCheck.MatchString(p)
-		post := r.Method == http.MethodPost && (p == "/controller/register/" ||
-			p == "/api/v1/monitoring/device/" || agentUpdate.MatchString(p))
-		if !canonicalURL(r) || (!get && !post) {
+		if !canonicalPath(p) || strings.Contains(strings.ToLower(r.URL.RawPath), "%2f") ||
+			atOrBelow(p, "/api/ha") ||
+			(!strings.HasPrefix(p, "/api/") && !strings.HasPrefix(p, "/controller/")) {
 			http.NotFound(w, r)
 			return
 		}
 		r = r.Clone(r.Context())
-		stripClientCredentials(r)
+		stripClientHeaders(r, false)
 		w.Header().Set("Cache-Control", "no-store")
 		next.ServeHTTP(w, r)
 	})
+}
+
+func atOrBelow(p, root string) bool {
+	return p == root || strings.HasPrefix(p, root+"/")
 }
 
 func isIngressAdmin(r *http.Request, trusted netip.Addr) bool {
@@ -134,7 +143,7 @@ func ingressHandler(trusted netip.Addr, next http.Handler, admin *core.Record) h
 			defer cancel()
 		}
 		r = r.Clone(ctx)
-		stripClientCredentials(r)
+		stripClientHeaders(r, true)
 		// Both protected files and backup downloads validate a file token
 		// independently of RequestEvent.Auth in PocketBase.
 		backupDownload := read && strings.HasPrefix(p, "/api/backups/") &&
@@ -159,7 +168,7 @@ func allowedPanelPath(p string, read bool, superuserCollectionID string) bool {
 		return read
 	case !strings.HasPrefix(p, "/api/"):
 		return false
-	case p == "/api/v1/monitoring/device/" || p == "/api/oauth2-redirect" ||
+	case atOrBelow(p, monitorAPI) || p == "/api/oauth2-redirect" ||
 		p == "/api/files/token" || p == "/api/batch":
 		return false
 	}

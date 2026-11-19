@@ -1,6 +1,6 @@
 # OpenSOHO for Home Assistant
 
-A Home Assistant OS add-on for Supervisor installations on `amd64` and `aarch64`. The OpenSOHO panel opens from the Home Assistant sidebar. OpenWrt routers register, download configuration and send monitoring reports through a separate LAN port.
+A Home Assistant OS add-on for Supervisor installations on `amd64` and `aarch64`. The OpenSOHO panel opens from the Home Assistant sidebar. OpenWrt routers and native API clients connect to a separate LAN port.
 
 ## Installation
 
@@ -8,15 +8,19 @@ A Home Assistant OS add-on for Supervisor installations on `amd64` and `aarch64`
 2. Install **OpenSOHO**. Supervisor builds the image from pinned revisions. The initial build requires access to Docker Hub image downloads, Debian packages, GitHub, npm and the public Go module proxy. The running controller operates locally. The image includes web assets and time zone data.
 3. Set `shared_secret` in the add-on configuration. Generate 64 characters with `openssl rand -hex 32` on a trusted computer. The add-on requires at least 32 characters. Keep the value for router registration.
 4. Enable **Show in sidebar** on the add-on page. Supervisor stores this as an instance setting. Start the add-on, sign in to HA as an administrator and open **OpenSOHO** in the sidebar. Use your usual local HA address or external HTTPS address. Keep your existing VPS, reverse proxy and WireGuard configuration.
-5. Assign a stable LAN address to the HA host. The default agent port is `8090/tcp`. If you change it in the add-on's network settings, update the controller URL on the routers.
+5. Assign a stable LAN address to the HA host. The default LAN port is `8090/tcp`. If you change it in the add-on's network settings, update the controller URL on your routers and API clients.
 
 | Address or path | Purpose |
 | --- | --- |
-| External or local HA address | Panel and administrative API through Ingress on internal add-on port 8091 |
-| `http://<HA-LAN-IP>:8090` | OpenWISP registration, status and metadata reports, checksums, configuration archives and monitoring |
+| External or local HA address | Panel and its API requests through Ingress on internal add-on port 8091 |
+| `http://<HA-LAN-IP>:8090` | Native OpenSOHO and PocketBase APIs under `/api/` and the OpenWISP controller under `/controller/` |
 | `/data/opensoho/pb_data` | SQLite databases, PocketBase files and controller configuration |
 
-Restrict port 8090 to trusted routers or a management network. HTTP on this port sends registration secrets, device keys and configuration without encryption. Supervisor accesses port 8091 within the HA network.
+Restrict port 8090 to a trusted management network. HTTP on this port sends API credentials, registration secrets, device keys and configuration without encryption. Supervisor accesses port 8091 within the HA network.
+
+## Native API clients
+
+Create an account in the `api_users` collection from the Ingress panel. Log in on the LAN with `POST /api/collections/api_users/auth-with-password` using the account name as `identity`. Pass the returned token in `Authorization` to call OpenSOHO endpoints such as `GET /api/v1/devicestatus/<MAC>`. PocketBase handles token validation, refresh and collection rules. Native superuser operations require separately held PocketBase superuser credentials. The internal Ingress account is managed by the add-on. [Upstream REST sensor and token examples](https://github.com/rubenbe/opensoho/blob/f54faedea50e5fa9569de3ee634f98f8b1565e32/docs/content/en/docs/home-assistant.md)
 
 ## OpenWrt 25.12 routers
 
@@ -25,7 +29,7 @@ Restrict port 8090 to trusted routers or a management network. HTTP on this port
 3. Confirm both devices appear under **Configuration → Devices** and report their status. The default `enable_new_devices: false` allows registration and inspection before configuration delivery. Changing this option affects newly registered devices. Enable configuration delivery individually after reviewing the preview.
 4. Back up both routers. On the Cudy, check PPPoE, LAN, DHCP, firewall rules and recovery access. On the Archer, confirm the bridge and wired uplink settings and verify that a second DHCP server is disabled. Compare proposed changes with the current UCI configuration before enabling delivery.
 
-The agent listener permits the exact OpenSOHO methods and paths below. OpenSOHO validates the OpenWISP secrets and device keys. [OpenSOHO entry point](https://github.com/rubenbe/opensoho/blob/f54faedea50e5fa9569de3ee634f98f8b1565e32/opensoho.go)
+OpenSOHO handles these OpenWISP routes and validates the registration secret and device keys. [OpenSOHO entry point](https://github.com/rubenbe/opensoho/blob/f54faedea50e5fa9569de3ee634f98f8b1565e32/opensoho.go)
 
 - `POST /controller/register/`
 - `POST /controller/report-status/<uuid>/`
@@ -34,11 +38,13 @@ The agent listener permits the exact OpenSOHO methods and paths below. OpenSOHO 
 - `GET /controller/download-config/<uuid>/`
 - `POST /api/v1/monitoring/device/`
 
+Monitoring uses the `key` query parameter to identify and authenticate the device. A report can include `uuid` for OpenWISP compatibility. OpenSOHO v0.16.0 uses the device key regardless of the UUID supplied.
+
 ## SSO and session behavior
 
 Supervisor restricts the panel using `panel_admin`. The add-on also checks the TCP peer address `172.30.32.2` documented by HA, a valid user ID and membership in `system-admin` from `X-Remote-User-Groups`. The inspected Supervisor code removes incoming identity headers and inserts its own. The HA owner receives effective administrator group membership. Header support was confirmed in Supervisor 2026.11.0. Versions without this header receive an access denial. [Ingress documentation](https://developers.home-assistant.io/docs/apps/presentation/#ingress) · [Supervisor Ingress](https://github.com/home-assistant/supervisor/blob/c1c6f0a754c0656eb1af189f11009f1cfc4b3e28/supervisor/api/ingress.py) · [Groups](https://github.com/home-assistant/supervisor/blob/c1c6f0a754c0656eb1af189f11009f1cfc4b3e28/supervisor/const.py)
 
-The adapter supplies the trusted identity through PocketBase's `RequestEvent.Auth`. The internal superuser record receives a random password on first startup. The browser receives a record ID and collection name. Each subsequent request and SSE reconnection passes through the Ingress authorization check. Tokens for protected file and backup downloads are created inside the process. PocketBase continues to enforce its access rules. The gateway blocks the built-in administrative token endpoints and PocketBase installer. [PocketBase Go routing](https://pocketbase.io/docs/go-routing/)
+The adapter supplies the trusted identity through PocketBase's `RequestEvent.Auth` on Ingress. The internal superuser record receives a random password on first startup. The browser receives a record ID and collection name. Each subsequent request and SSE reconnection passes through the Ingress authorization check. Tokens for protected file and backup downloads are created inside the process. PocketBase continues to enforce its access rules. Ingress blocks native login and token endpoints. The panel and HA session endpoint are available only through Ingress. The PocketBase installer is disabled. [PocketBase Go routing](https://pocketbase.io/docs/go-routing/)
 
 Access depends on the Ingress session and the role supplied by Supervisor. In the inspected HA code, logout revokes the Core session, while the Ingress cookie has its own Supervisor lifecycle. Supervisor extends its validity by 15 minutes on subsequent requests and may cache user roles. Existing SSE streams are limited to one minute. When testing immediate access revocation, remove the `ingress_session` browser cookie and check a fresh session. After emergency role revocation, restart Supervisor to refresh its cached roles, then verify that the former account is denied access. [Supervisor session implementation](https://github.com/home-assistant/supervisor/blob/c1c6f0a754c0656eb1af189f11009f1cfc4b3e28/supervisor/ingress.py)
 

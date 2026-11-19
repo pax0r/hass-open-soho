@@ -203,7 +203,14 @@ def smoke(image, replacement, use_browser):
                 request(direct, "/api/ha/session", headers=forged_headers, expected=403)
                 request(agent, "/api/ha/session", headers=forged_headers, expected=404)
                 request(agent, "/_/", headers=forged_headers, expected=404)
-                request(agent, "/api/collections/_superusers/auth-with-password", "POST", expected=404)
+                result, headers = request(agent, "/api/health",
+                                          headers=forged_headers | {"Origin": "http://client.example"})
+                assert json.loads(result)["data"] == {}, "LAN request acquired HA privileges"
+                assert headers.get("Access-Control-Allow-Origin") == "*", "native CORS is missing"
+                request(agent, "/api/settings", headers=forged_headers, expected=401)
+                request(agent, "/api/collections/_superusers/auth-with-password", "POST",
+                        json.dumps({"identity": "missing@example.com", "password": secrets.token_hex(20)}),
+                        {"Content-Type": "application/json"}, 400)
                 request(ingress, prefix + "/api/ha/session", headers=forged_headers, expected=403)
                 user_headers = forged_headers | {"Cookie": "test_session=" + user}
                 request(ingress, prefix + "/api/ha/session", headers=user_headers, expected=403)
@@ -215,7 +222,30 @@ def smoke(image, replacement, use_browser):
                 assert headers["Location"] == prefix + "/_/"
                 request(ingress, prefix + "/api/health", headers=admin_headers)
                 request(ingress, prefix + "/api/v1/network-overview", headers=admin_headers)
+                auth_path = "/api/collections/api_users/auth-with-password"
+                json_headers = {"Content-Type": "application/json"}
+                password = secrets.token_hex(20)
+                credentials = json.dumps({"identity": "smoke-api", "password": password})
+                request(ingress, prefix + "/api/collections/api_users/records", "POST",
+                        json.dumps({"name": "smoke-api", "password": password,
+                                    "passwordConfirm": password}),
+                        admin_headers | json_headers)
+                request(ingress, prefix + auth_path, "POST", credentials,
+                        admin_headers | json_headers, 404)
+                request(agent, auth_path, "POST",
+                        json.dumps({"identity": "smoke-api", "password": secrets.token_hex(20)}),
+                        json_headers, 400)
+                result, _ = request(agent, auth_path, "POST", credentials, json_headers)
+                token = json.loads(result)["token"]
+                result, _ = request(agent, "/api/collections/api_users/auth-refresh", "POST",
+                                    headers={"Authorization": token})
+                api_headers = {"Authorization": "Bearer " + json.loads(result)["token"]}
+                request(agent, "/api/v1/network-overview", headers=api_headers)
+                request(agent, "/api/settings", headers=api_headers, expected=403)
+                request(agent, "/_/", headers=api_headers, expected=404)
+                request(direct, "/_/", headers=api_headers, expected=403)
                 print("PASS trusted admin, rejected other identities, no browser credential, isolated LAN")
+                print("PASS native API login, refresh, collection privileges and LAN panel isolation")
 
                 fields = {
                     "name": "smoke-router", "backend": "netjsonconfig.OpenWrt",
@@ -232,7 +262,10 @@ def smoke(image, replacement, use_browser):
                 assert lines["is-new"] == "1"
                 checksum_path = f"/controller/checksum/{uuid}/?key={key}"
                 download_path = f"/controller/download-config/{uuid}/?key={key}"
-                monitor_path = f"/api/v1/monitoring/device/?key={key}&current=true"
+                monitor_endpoint = "/api/v1/monitoring/device/"
+                monitor_path = monitor_endpoint + "?" + urlencode(
+                    {"key": key, "uuid": uuid, "current": "true"}
+                )
                 monitoring = json.dumps({
                     "type": "DeviceMonitoring", "interfaces": [],
                     "general": {"local_time": int(time.time()), "uptime": 42},
@@ -242,7 +275,25 @@ def smoke(image, replacement, use_browser):
                 assert hashlib.md5(archive, usedforsecurity=False).hexdigest().encode() == checksum
                 with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as bundle:
                     assert "etc/config/openwisp-monitoring" in bundle.getnames(), bundle.getnames()
-                request(agent, monitor_path, "POST", monitoring, {"Content-Type": "application/json"})
+                status_path = "/api/v1/devicestatus/" + fields["mac_address"]
+                request(agent, status_path, headers=forged_headers, expected=401)
+                request(agent, status_path, headers={"Authorization": "invalid"}, expected=401)
+                request(agent, monitor_endpoint + "?" + urlencode({"uuid": uuid}),
+                        "POST", monitoring, json_headers, 403)
+                request(agent, monitor_endpoint + "?" + urlencode(
+                    {"uuid": uuid, "key": secrets.token_hex(16)}
+                ), "POST", monitoring, json_headers, 403)
+                request(agent, monitor_path, "POST", monitoring, json_headers)
+                request(agent, monitor_endpoint + "?" + urlencode(
+                    {"key": key, "uuid": "00000000-0000-0000-0000-000000000000", "current": "true"}
+                ), "POST", monitoring, json_headers)
+                request(agent, monitor_endpoint + uuid + "/?" + urlencode(
+                    {"key": key, "current": "true"}
+                ), "POST", monitoring, json_headers)
+                result, _ = request(agent, status_path, headers=api_headers)
+                assert result == b"on", result
+                request(ingress, prefix + monitor_endpoint, "POST", monitoring,
+                        admin_headers | json_headers, 404)
                 devices_path = prefix + "/api/collections/devices/records"
                 result, _ = request(ingress, devices_path, headers=admin_headers)
                 record = json.loads(result)["items"][0]
@@ -268,7 +319,7 @@ def smoke(image, replacement, use_browser):
                 with zipfile.ZipFile(io.BytesIO(backup)) as bundle:
                     assert "data.db" in bundle.namelist()
                 request(ingress, backup_path, headers=user_headers, expected=403)
-                request(agent, "/api/backups/" + backup_name, expected=404)
+                request(agent, "/api/backups/" + backup_name, expected=403)
                 print("PASS backup download through Ingress and rejected unauthorized downloads")
 
                 if use_browser:
@@ -281,9 +332,11 @@ def smoke(image, replacement, use_browser):
                 logs = subprocess.check_output(
                     ["docker", "logs", controller], text=True, stderr=subprocess.STDOUT
                 )
-                assert all(value not in logs for value in (key, secret, admin)), "secret in container logs"
+                assert all(value not in logs for value in (key, secret, admin, password, token)), (
+                    "secret in container logs"
+                )
                 assert "numradios" not in logs, "raw upstream configuration output reached the add-on log"
-                assert "OpenWISP listener ready" in logs, "add-on startup diagnostics are missing"
+                assert "LAN listener ready" in logs, "add-on startup diagnostics are missing"
                 docker("rm", controller)
                 agent, _ = start(replacement or image)
                 result, _ = request(ingress, devices_path, headers=admin_headers)
