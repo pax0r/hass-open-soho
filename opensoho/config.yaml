@@ -1,5 +1,5 @@
 name: OpenSOHO
-version: "0.1.1"
+version: "0.1.2"
 slug: opensoho
 description: Local OpenWrt controller with Home Assistant Ingress
 url: https://github.com/pax0r/hass-open-soho

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2
+
+- Accept OpenWISP monitoring reports with a device UUID in the URL.
+- Use the original OpenSOHO icon in Home Assistant.
+- Link to the upstream OpenSOHO documentation for router setup.
+
 ## 0.1.1
 
 - Base the add-on on stable OpenSOHO v0.16.0 and record upstream release pins centrally.

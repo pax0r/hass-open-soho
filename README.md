@@ -1,6 +1,8 @@
 # OpenSOHO for Home Assistant
 
-A Home Assistant OS add-on for Supervisor installations on `amd64` and `aarch64`. The OpenSOHO panel opens from the Home Assistant sidebar. OpenWrt routers register, download configuration and send monitoring reports through a separate LAN port.
+An unofficial Home Assistant OS add-on for Supervisor installations on `amd64` and `aarch64`. The OpenSOHO panel opens from the Home Assistant sidebar. OpenWrt routers register, download configuration and send monitoring reports through a separate LAN port.
+
+The add-on icon is the unmodified favicon from OpenSOHO v0.16.0. Copyright in the favicon remains with its original rights holders. [Original favicon](https://github.com/rubenbe/opensoho/blob/f54faedea50e5fa9569de3ee634f98f8b1565e32/favicon.png) · [Upstream license](https://github.com/rubenbe/opensoho/blob/f54faedea50e5fa9569de3ee634f98f8b1565e32/LICENSE)
 
 ## Installation
 
