@@ -33,7 +33,7 @@ Agent operation continues independently of panel authorization. The add-on prepa
 ## Backup, restore and updates
 
 - Create a Home Assistant backup including OpenSOHO and protect it as credential material. The `cold` backup mode stops the process for the snapshot. The backup contains add-on data and options. Embedded migrations are extracted from the image at startup.
-- To restore, select a backup containing OpenSOHO in Supervisor. Check the port, settings and router state, then verify configuration downloads and fresh monitoring reports. Update router URLs if the HA host's LAN address changed.
+- To restore, select a Home Assistant backup containing OpenSOHO in Supervisor. A restore from the PocketBase panel restarts the process as its unprivileged user, which cannot read Supervisor's private options file. After a Supervisor restore, check the port, settings and router state, then verify configuration downloads and fresh monitoring reports. Update router URLs if the HA host's LAN address changed.
 - Before updating, create a backup and retain access to the previous image and its corresponding data backup. Supervisor preserves `/data` when replacing the image. Downgrading after a migration may require restoring an earlier backup.
 
 ## Troubleshooting
